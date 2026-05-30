@@ -17,8 +17,24 @@ const app = express();
 connectDB();
 
 // Middleware
+const allowedOrigins = [
+  'https://softstore.appsstore.workers.dev',
+  'http://localhost:8080',
+  'http://localhost:5173' // أضفه أيضاً إذا كنت تستخدم Vite افتراضياً
+];
+
 app.use(cors({
-  origin: 'https://softstore.appsstore.workers.dev' // رابط الفرونت اند الخاص بك
+  origin: function (origin, callback) {
+    // السماح بالطلبات التي ليس لها origin (مثل برامج سطح المكتب أو Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true // مهم إذا كنت ترسل ملفات تعريف الارتباط أو التوكن في الهيدر
 }));
 // Parse JSON body, except for PayPal webhook which needs raw body for verification
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));

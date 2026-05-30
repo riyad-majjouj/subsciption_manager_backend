@@ -17,7 +17,9 @@ const app = express();
 connectDB();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'https://softstore.appsstore.workers.dev' // رابط الفرونت اند الخاص بك
+}));
 // Parse JSON body, except for PayPal webhook which needs raw body for verification
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());

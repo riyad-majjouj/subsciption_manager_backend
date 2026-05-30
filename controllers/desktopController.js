@@ -60,7 +60,7 @@ exports.verifyAndConsume = async (req, res) => {
       allowed: false, 
       reason: 'payment_required',
       message: 'انتهى الرصيد أو الفترة التجريبية. يرجى الشراء.',
-      checkoutUrl: `http://localhost:5173/checkout/${productId}` // يفتح هذا الرابط في المتصفح من البرنامج
+      checkoutUrl: `https://softstore.appsstore.workers.dev/checkout/${productId}` // يفتح هذا الرابط في المتصفح من البرنامج
     });
 
   } catch (err) {

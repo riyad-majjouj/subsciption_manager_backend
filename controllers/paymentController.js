@@ -95,8 +95,8 @@ exports.createOrder = async (req, res) => {
         description: `Plan: ${planId} for ${product.name}`
       }],
       application_context: {
-        return_url: `http://localhost:8080/checkout/success`,
-        cancel_url: `http://localhost:8080/checkout/${productId}`
+        return_url: `https://softstore.appsstore.workers.dev/checkout/success`,
+        cancel_url: `https://softstore.appsstore.workers.dev/checkout/${productId}`
       }
     });
 

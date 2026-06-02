@@ -20,7 +20,8 @@ connectDB();
 const allowedOrigins = [
   'https://softstore.appsstore.workers.dev',
   'http://localhost:8080',
-  'http://localhost:5173' // أضفه أيضاً إذا كنت تستخدم Vite افتراضياً
+  'http://localhost:5173',
+  'https://smartcv-delta.vercel.app', // أضفه أيضاً إذا كنت تستخدم Vite افتراضياً
 ];
 
 app.use(cors({

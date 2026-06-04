@@ -41,6 +41,14 @@ exports.checkCoupon = async (req, res) => {
     if (coupon.validUntil < new Date()) return res.status(400).json({ error: 'الكوبون منتهي الصلاحية' });
     if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) return res.status(400).json({ error: 'تم استنفاد هذا الكوبون' });
 
+    // التأكد من أن المستخدم لم يستخدم الكوبون من قبل
+    if (req.user) {
+        const user = await User.findById(req.user.id);
+        if (user && user.usedCoupons.includes(coupon._id)) {
+            return res.status(400).json({ error: 'لقد قمت باستخدام هذا الكوبون مسبقاً! الكوبون صالح لمرة واحدة فقط لكل مستخدم.' });
+        }
+    }
+
     res.json({ success: true, discountType: coupon.discountType, discountValue: coupon.discountValue });
   } catch (err) {
     res.status(500).json({ error: 'خطأ في الخادم' });
@@ -72,6 +80,13 @@ exports.createOrder = async (req, res) => {
     if (couponCode) {
       const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
       if (coupon && coupon.validUntil > new Date() && (!coupon.maxUses || coupon.usedCount < coupon.maxUses)) {
+        
+        // منع المستخدم من استخدام نفس الكوبون مرتين
+        const user = await User.findById(req.user.id);
+        if (user.usedCoupons.includes(coupon._id)) {
+            return res.status(400).json({ error: 'لقد قمت باستخدام هذا الكوبون مسبقاً! الكوبون صالح لمرة واحدة فقط لكل مستخدم.' });
+        }
+
         if (coupon.discountType === 'percentage') {
           finalAmount = baseAmount - (baseAmount * (coupon.discountValue / 100));
         } else if (coupon.discountType === 'fixed') {
@@ -144,12 +159,18 @@ exports.captureOrder = async (req, res) => {
       transaction.status = 'completed';
       await transaction.save();
 
-      // تحديث استخدام الكوبون
+      // تحديث استخدام الكوبون العام وتسجيله في حساب المستخدم
+      const user = await User.findById(transaction.user);
+
       if (transaction.couponUsed) {
+        // تحديث العداد العام للكوبون (إذا كان محدوداً)
         await Coupon.findByIdAndUpdate(transaction.couponUsed, { $inc: { usedCount: 1 } });
+        // تسجيل الكوبون بحساب العميل لمنعه من استخدامه مرة أخرى
+        if (!user.usedCoupons.includes(transaction.couponUsed)) {
+            user.usedCoupons.push(transaction.couponUsed);
+        }
       }
 
-      const user = await User.findById(transaction.user);
       const planId = transaction.type;
       
       // تفريغ الرصيد أو الاشتراك بناءً على الخطة

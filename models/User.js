@@ -12,6 +12,14 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  // --- حقول التحقق من الإيميل الجديدة ---
+  isVerified: { type: Boolean, default: false },
+  otpCode: { type: String },
+  otpExpires: { type: Date },
+  
+  // --- حقل بصمات الأجهزة لتسجيل الدخول التلقائي ---
+  hwids: [{ type: String }], 
+
   trials: [{
     product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     usesLeft: { type: Number, default: 0 },
@@ -36,12 +44,11 @@ const UserSchema = new mongoose.Schema({
       type: Date
     }
   }],
-
+  usedCoupons: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Coupon' }],
   lifetimeLicenses: [{
     product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     hwid: { type: String, default: null }
   }]
 }, { timestamps: true });
-
 
 module.exports = mongoose.model('User', UserSchema);

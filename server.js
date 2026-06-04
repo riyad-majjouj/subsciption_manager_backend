@@ -10,6 +10,7 @@ const userRoutes = require('./routes/user');
 const paymentRoutes = require('./routes/payments');
 const productRoutes = require('./routes/products');
 const desktopRoutes = require('./routes/desktop');
+const contactRoutes = require('./routes/contact');
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/desktop', desktopRoutes);
+app.use('/api/contact', contactRoutes);
 // Error Handler
 app.use((err, req, res, next) => {
   console.error(err.stack);

@@ -17,12 +17,19 @@ router.post('/', async (req, res) => {
 
   try {
     // إعداد ناقل البريد الإلكتروني (SMTP)
+    // ابحث عن كود الـ transporter داخل الملف واستبدله بـ:
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
-      }
+      },
+      family: 4, // إجبار IPv4
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000
     });
 
     // إعداد شكل الرسالة التي ستصلك إلى إيميلك (majoriyad@gmail.com)
@@ -46,7 +53,7 @@ router.post('/', async (req, res) => {
 
     // إرسال الإيميل
     await transporter.sendMail(mailOptions);
-    
+
     // إرجاع استجابة النجاح للفرونت اند لكي يظهر رسالة (تم الإرسال بنجاح)
     res.json({ success: true, message: 'تم إرسال رسالتك بنجاح' });
 

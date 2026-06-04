@@ -6,8 +6,18 @@ const nodemailer = require('nodemailer');
 
 // إعداد مرسل الإيميل
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // نستخدم false مع المنفذ 587
+  auth: { 
+    user: process.env.EMAIL_USER, 
+    pass: process.env.EMAIL_PASS 
+  },
+  // --- الإعدادات السحرية لحل المشكلة ---
+  family: 4, // إجبار الاتصال عبر IPv4 وتخطي IPv6 تماماً لمنع خطأ ENETUNREACH
+  connectionTimeout: 10000, // وقت مستقطع 10 ثوانٍ لمنع تعليق السيرفر
+  greetingTimeout: 10000,
+  socketTimeout: 10000
 });
 
 // @route   POST /api/auth/register

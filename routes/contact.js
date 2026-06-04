@@ -1,64 +1,50 @@
-// مسار الملف: backend/routes/contact.js
-
 const express = require('express');
 const router = express.Router();
-const nodemailer = require('nodemailer');
 
 // @route   POST /api/contact
-// @desc    Receive contact form submission and send email
-// @access  Public
 router.post('/', async (req, res) => {
   const { name, email, subject, message } = req.body;
 
-  // التحقق من أن جميع الحقول ممتلئة
   if (!name || !email || !subject || !message) {
     return res.status(400).json({ error: 'الرجاء تعبئة كافة الحقول المطلوبة' });
   }
 
   try {
-    // إعداد ناقل البريد الإلكتروني (SMTP)
-    // ابحث عن كود الـ transporter داخل الملف واستبدله بـ:
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+    // إرسال رسالة "اتصل بنا" عبر الـ API إلى بريدك الشخصي مباشرة
+    const mailResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
       },
-      family: 4, // إجبار IPv4
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 10000
+      body: JSON.stringify({
+        from: 'SoftStore Contact <onboarding@resend.dev>',
+        to: 'majoriyad@gmail.com', // إيميلك الشخصي المستهدف لاستقبال الشكاوى والاستفسارات
+        reply_to: email, // للرد مباشرة على العميل عند الضغط على Reply في بريدك
+        subject: `[سوفت ستور] استفسار جديد: ${subject}`,
+        html: `
+          <div dir="rtl" style="font-family: Arial; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+            <h2 style="color: #4f46e5; border-bottom: 1px solid #eee; padding-bottom: 10px;">رسالة تواصل جديدة من الموقع</h2>
+            <p><strong>اسم العميل:</strong> ${name}</p>
+            <p><strong>البريد الإلكتروني للعميل:</strong> ${email}</p>
+            <p><strong>الموضوع:</strong> ${subject}</p>
+            <div style="background: #f9f9f9; padding: 15px; border-radius: 6px; border-right: 4px solid #4f46e5; margin-top: 15px;">
+              <p style="margin: 0; line-height: 1.6;"><strong>نص الرسالة:</strong><br/> ${message.replace(/\n/g, '<br/>')}</p>
+            </div>
+          </div>
+        `
+      })
     });
 
-    // إعداد شكل الرسالة التي ستصلك إلى إيميلك (majoriyad@gmail.com)
-    const mailOptions = {
-      from: `"${name}" <${email}>`, // يظهر كأن العميل هو من أرسل
-      to: process.env.EMAIL_USER, // إيميلك الذي ستستقبل عليه الرسائل
-      replyTo: email, // لكي تتمكن من الرد مباشرة على العميل عند الضغط على Reply
-      subject: `[سوفت ستور] استفسار جديد: ${subject}`,
-      html: `
-        <div dir="rtl" style="font-family: Arial, sans-serif; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #4f46e5; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">رسالة تواصل جديدة من الموقع</h2>
-          <p><strong>اسم العميل:</strong> ${name}</p>
-          <p><strong>البريد الإلكتروني:</strong> <a href="mailto:${email}">${email}</a></p>
-          <p><strong>الموضوع:</strong> ${subject}</p>
-          <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 15px; border-right: 4px solid #4f46e5;">
-            <p style="margin: 0; line-height: 1.6;"><strong>نص الرسالة:</strong><br/><br/> ${message.replace(/\n/g, '<br/>')}</p>
-          </div>
-        </div>
-      `
-    };
+    if (!mailResponse.ok) {
+      const errorData = await mailResponse.json();
+      throw new Error(errorData.message || 'فشل الإرسال عبر Resend');
+    }
 
-    // إرسال الإيميل
-    await transporter.sendMail(mailOptions);
-
-    // إرجاع استجابة النجاح للفرونت اند لكي يظهر رسالة (تم الإرسال بنجاح)
     res.json({ success: true, message: 'تم إرسال رسالتك بنجاح' });
 
   } catch (err) {
-    console.error('Nodemailer Error: ', err);
+    console.error('Resend Contact Error: ', err);
     res.status(500).json({ error: 'حدث خطأ في السيرفر ولم يتم إرسال الرسالة.' });
   }
 });

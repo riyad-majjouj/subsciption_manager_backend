@@ -51,23 +51,37 @@ exports.register = async (req, res) => {
         });
     }
 
-    // === التعديل هنا: محاولة إرسال الإيميل مع التقاط الخطأ ===
+    // === إرسال الإيميل عبر HTTPS API (غير قابل للحظر) ===
     try {
-      await transporter.sendMail({
-        from: '"سوفت ستور" <support@softstore.dev>',
-        to: email,
-        subject: 'رمز تفعيل حسابك في سوفت ستور',
-        html: `
-          <div dir="rtl" style="font-family: Arial; padding: 20px;">
-            <h2>مرحباً بك في سوفت ستور!</h2>
-            <p>رمز التحقق الخاص بك هو: <strong style="font-size: 24px; color: #4f46e5;">${otpCode}</strong></p>
-            <p>هذا الرمز صالح لمدة 15 دقيقة.</p>
-          </div>
-        `
+      const mailResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'SoftStore <onboarding@resend.dev>', // إيميل تجريبي مجاني توفره شركة Resend
+          to: email,
+          subject: 'رمز تفعيل حسابك في سوفت ستور',
+          html: `
+            <div dir="rtl" style="font-family: Arial; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+              <h2 style="color: #4f46e5;">مرحباً بك في سوفت ستور!</h2>
+              <p>رمز التحقق الخاص بك لتفعيل الحساب هو:</p>
+              <p style="font-size: 32px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; text-align: center; margin: 20px 0;">${otpCode}</p>
+              <p>هذا الرمز صالح لمدة 15 دقيقة لدواعي الأمان.</p>
+            </div>
+          `
+        })
       });
+
+      const mailData = await mailResponse.json();
+      if (!mailResponse.ok) {
+        throw new Error(mailData.message || 'فشلت عملية الإرسال من خوادم Resend');
+      }
+
     } catch (mailError) {
-      console.error("Mail Error Details:", mailError);
-      return res.status(500).json({ error: 'حدث خطأ أثناء محاولة إرسال الإيميل. تأكد من إعدادات البريد.' });
+      console.error("Resend Mail Error Details:", mailError);
+      return res.status(500).json({ error: 'حدث خطأ في خدمة البريد الإلكتروني السحابية.' });
     }
     // ========================================================
 

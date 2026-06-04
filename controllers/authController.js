@@ -20,9 +20,8 @@ exports.register = async (req, res) => {
         if (user.isVerified) return res.status(400).json({ error: 'البريد الإلكتروني مسجل ومفعل مسبقاً' });
     }
 
-    // توليد كود من 6 أرقام
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // صالح لـ 15 دقيقة
+    const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 دقيقة
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -42,19 +41,25 @@ exports.register = async (req, res) => {
         });
     }
 
-    // إرسال الكود للإيميل
-    await transporter.sendMail({
-      from: '"سوفت ستور" <support@softstore.dev>',
-      to: email,
-      subject: 'رمز تفعيل حسابك في سوفت ستور',
-      html: `
-        <div dir="rtl" style="font-family: Arial; padding: 20px;">
-          <h2>مرحباً بك في سوفت ستور!</h2>
-          <p>رمز التحقق الخاص بك هو: <strong style="font-size: 24px; color: #4f46e5;">${otpCode}</strong></p>
-          <p>هذا الرمز صالح لمدة 15 دقيقة.</p>
-        </div>
-      `
-    });
+    // === التعديل هنا: محاولة إرسال الإيميل مع التقاط الخطأ ===
+    try {
+      await transporter.sendMail({
+        from: '"سوفت ستور" <support@softstore.dev>',
+        to: email,
+        subject: 'رمز تفعيل حسابك في سوفت ستور',
+        html: `
+          <div dir="rtl" style="font-family: Arial; padding: 20px;">
+            <h2>مرحباً بك في سوفت ستور!</h2>
+            <p>رمز التحقق الخاص بك هو: <strong style="font-size: 24px; color: #4f46e5;">${otpCode}</strong></p>
+            <p>هذا الرمز صالح لمدة 15 دقيقة.</p>
+          </div>
+        `
+      });
+    } catch (mailError) {
+      console.error("Mail Error Details:", mailError);
+      return res.status(500).json({ error: 'حدث خطأ أثناء محاولة إرسال الإيميل. تأكد من إعدادات البريد.' });
+    }
+    // ========================================================
 
     await user.save();
     res.json({ success: true, message: 'تم إرسال رمز التحقق إلى بريدك الإلكتروني.' });

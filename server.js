@@ -27,16 +27,16 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    // السماح بالطلبات التي ليس لها origin (مثل برامج سطح المكتب أو Postman)
     if (!origin) return callback(null, true);
-    
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true // مهم إذا كنت ترسل ملفات تعريف الارتباط أو التوكن في الهيدر
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 // Parse JSON body, except for PayPal webhook which needs raw body for verification
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));

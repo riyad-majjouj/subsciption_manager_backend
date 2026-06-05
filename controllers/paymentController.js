@@ -18,20 +18,37 @@ const client = new paypal.core.PayPalHttpClient(environment);
 // ==========================================
 // 1. قاعدة بيانات أسعار الخطط لكل المنتجات
 // ==========================================
+// ==========================================
+// 1. قاعدة بيانات أسعار الخطط لكل المنتجات
+// ==========================================
 const planPricings = {
-  "smartcv-maroc": {
+  "autodoc-image-pro": {
     "monthly": { price: 15.00, type: "subscription", quantity: 1 },
     "yearly": { price: 120.00, type: "subscription", quantity: 12 },
-    "credit_small": { price: 5.00, type: "credit", quantity: 10 },
-    "credit_medium": { price: 15.00, type: "credit", quantity: 50 },
-    "credit_large": { price: 20.00, type: "credit", quantity: 100 }
+    "credit_small": { price: 10.00, type: "credit", quantity: 50 }, // 50 نقطة × 0.2$ = 10$
+    "credit_medium": { price: 20.00, type: "credit", quantity: 100 }, // 100 نقطة × 0.2$ = 20$
+    "lifetime": { price: 200.00, type: "lifetime", quantity: 1 }
   },
-  "default": {
-    "monthly": { price: 9.99, type: "subscription", quantity: 1 },
-    "yearly": { price: 79.99, type: "subscription", quantity: 12 },
-    "credit_small": { price: 4.99, type: "credit", quantity: 50 },
-    "credit_medium": { price: 14.99, type: "credit", quantity: 200 },
-    "lifetime": { price: 49.99, type: "lifetime", quantity: 1 }
+  "smart-print-assistant": {
+    "monthly": { price: 10.00, type: "subscription", quantity: 1 },
+    "yearly": { price: 80.00, type: "subscription", quantity: 12 },
+    "credit_small": { price: 7.50, type: "credit", quantity: 50 }, // 50 نقطة × 0.15$ = 7.50$
+    "credit_medium": { price: 15.00, type: "credit", quantity: 100 }, // 100 نقطة × 0.15$ = 15$
+    "lifetime": { price: 80.00, type: "lifetime", quantity: 1 } // سعر مدى الحياة كما طلبت
+  },
+  "autofiller-pro": {
+    "monthly": { price: 20.00, type: "subscription", quantity: 1 },
+    "yearly": { price: 200.00, type: "subscription", quantity: 12 },
+    "credit_small": { price: 15.00, type: "credit", quantity: 15 }, // 15 نقطة × 1$ = 15$
+    "credit_medium": { price: 50.00, type: "credit", quantity: 50 }, // 50 نقطة × 1$ = 50$
+    "lifetime": { price: 250.00, type: "lifetime", quantity: 1 }
+  },
+  "smartcv-maroc": {
+    "monthly": { price: 15.00, type: "subscription", quantity: 1 },
+    "yearly": { price: 100.00, type: "subscription", quantity: 12 },
+    "credit_small": { price: 9.00, type: "credit", quantity: 30 }, // 30 نقطة × 0.3$ = 9$
+    "credit_medium": { price: 30.00, type: "credit", quantity: 100 }, // 100 نقطة × 0.3$ = 30$
+    "lifetime": { price: 200.00, type: "lifetime", quantity: 1 }
   }
 };
 

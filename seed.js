@@ -22,22 +22,22 @@ const seedData = async () => {
       customId: "autodoc-image-pro",
       name: "AutoDoc Image Pro",
       type: "desktop",
-      trialDays: 7,
-      pricing: { creditPrice: 19, subscriptionPriceMonthly: 39 }
+      trialDays: 3,
+      pricing: { creditPrice: 0.19, subscriptionPriceMonthly: 15 }
     },
     {
       customId: "smart-print-assistant",
       name: "Smart Print Assistant Pro",
       type: "desktop",
-      trialDays: 7,
-      pricing: { creditPrice: 25, subscriptionPriceMonthly: 49 }
+      trialDays: 3,
+      pricing: { creditPrice: 0.15, subscriptionPriceMonthly: 10 }
     },
     {
       customId: "autofiller-pro",
       name: "AutoFillerPro",
       type: "desktop",
-      trialDays: 7,
-      pricing: { creditPrice: 49, subscriptionPriceMonthly: 89 }
+      trialDays: 3,
+      pricing: { creditPrice: 1, subscriptionPriceMonthly: 20 }
     }
   ];
 

@@ -4,10 +4,15 @@ const Product = require('../models/Product');
 const User = require('../models/User');
 const Coupon = require('../models/Coupon');
 
-// إعداد بيئة باي بال
+// إعداد بيئة باي بال (ديناميكية)
 const clientId = process.env.PAYPAL_CLIENT_ID;
 const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
-const environment = new paypal.core.SandboxEnvironment(clientId, clientSecret); 
+
+// إذا أضفت متغير PAYPAL_MODE=live في Railway سيعمل الدفع الحقيقي، غير ذلك سيعمل الاختبار
+const environment = process.env.PAYPAL_MODE === 'live' 
+  ? new paypal.core.LiveEnvironment(clientId, clientSecret)
+  : new paypal.core.SandboxEnvironment(clientId, clientSecret);
+
 const client = new paypal.core.PayPalHttpClient(environment);
 
 // ==========================================

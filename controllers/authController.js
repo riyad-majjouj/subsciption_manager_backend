@@ -56,19 +56,66 @@ exports.register = async (req, res) => {
 // 2. تسجيل الدخول العادي (للموقع)
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    // استقبلنا بصمة الجهاز من بايثون
+    const { email, password, hwid } = req.body;
 
-    if (!user) return res.status(400).json({ error: 'بيانات الدخول غير صحيحة' });
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ error: 'البريد الإلكتروني غير مسجل.' });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ error: 'بيانات الدخول غير صحيحة' });
+    if (!isMatch) {
+      return res.status(400).json({ error: 'كلمة المرور غير صحيحة.' });
+    }
 
-    res.json({ token: generateToken(user._id), user: { id: user._id, email: user.email } });
+    // ========== نظام ربط الجهاز بالحساب (HWID Binding) ==========
+    if (hwid) {
+      if (!user.globalHwid) {
+        // إذا كان الحساب جديداً ولم يتم ربطه، نربطه بجهاز العميل الحالي
+        user.globalHwid = hwid;
+        await user.save();
+      } else if (user.globalHwid !== hwid) {
+        // إذا كان مربوطاً مسبقاً بجهاز مختلف، نرفض تسجيل الدخول
+        return res.status(403).json({ error: 'عذراً، هذا الحساب مربوط ومستخدم على جهاز كمبيوتر آخر.' });
+      }
+    }
+    // ==============================================================
+
+    const payload = { user: { id: user.id } };
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '30d' }, (err, token) => {
+      if (err) throw err;
+      res.json({ token, user: { id: user.id, email: user.email } });
+    });
   } catch (err) {
-    res.status(500).json({ error: 'Server Error' });
+    console.error(err.message);
+    res.status(500).send('Server error');
   }
 };
+
+// @route   POST /api/auth/verify-session
+// هذه الدالة يستخدمها البرنامج للتحقق الصامت بدون إزعاج المستخدم بالشاشات
+exports.verifySession = async (req, res) => {
+  try {
+    // التوكن موجود في الهيدر، فك تشفيره
+    const token = req.header('Authorization').replace('Bearer ', '');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    const user = await User.findById(decoded.user.id);
+    if (!user) return res.status(401).json({ valid: false });
+
+    // التحقق من أن التوكن تم فتحه من نفس الجهاز الأصلي (منع نقل ملف التوكن لجهاز آخر)
+    const { hwid } = req.body;
+    if (hwid && user.globalHwid && user.globalHwid !== hwid) {
+      return res.status(401).json({ valid: false, error: 'HWID Mismatch' });
+    }
+
+    res.json({ valid: true });
+  } catch (err) {
+    res.status(401).json({ valid: false });
+  }
+};
+
 
 // 3. تسجيل الدخول التلقائي لبرامج سطح المكتب (بدون باسوورد، بالاعتماد على البصمة)
 exports.desktopAutoLogin = async (req, res) => {

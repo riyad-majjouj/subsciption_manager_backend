@@ -3,8 +3,7 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 
 router.post('/register', authController.register);
-router.post('/verify-otp', authController.verifyOTP);
 router.post('/login', authController.login);
-router.post('/hwid-login', authController.hwidLogin);
+router.post('/desktop-auto-login', authController.desktopAutoLogin);
 
 module.exports = router;

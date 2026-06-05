@@ -27,6 +27,7 @@ const UserSchema = new mongoose.Schema({
       default: 0
     }
   }],
+   hwid: { type: String, unique: true, sparse: true },
   subscriptions: [{
     product: {
       type: mongoose.Schema.Types.ObjectId,

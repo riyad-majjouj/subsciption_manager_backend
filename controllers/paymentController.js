@@ -30,7 +30,6 @@ const planPricings = {
   }
 };
 
-
 // @route   POST /api/payments/check-coupon
 exports.checkCoupon = async (req, res) => {
   try {
@@ -41,20 +40,11 @@ exports.checkCoupon = async (req, res) => {
     if (coupon.validUntil < new Date()) return res.status(400).json({ error: 'الكوبون منتهي الصلاحية' });
     if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) return res.status(400).json({ error: 'تم استنفاد هذا الكوبون' });
 
-    // التأكد من أن المستخدم لم يستخدم الكوبون من قبل
-    if (req.user) {
-        const user = await User.findById(req.user.id);
-        if (user && user.usedCoupons.includes(coupon._id)) {
-            return res.status(400).json({ error: 'لقد قمت باستخدام هذا الكوبون مسبقاً! الكوبون صالح لمرة واحدة فقط لكل مستخدم.' });
-        }
-    }
-
     res.json({ success: true, discountType: coupon.discountType, discountValue: coupon.discountValue });
   } catch (err) {
     res.status(500).json({ error: 'خطأ في الخادم' });
   }
 };
-
 
 // @route   POST /api/payments/create-order
 exports.createOrder = async (req, res) => {
@@ -66,7 +56,6 @@ exports.createOrder = async (req, res) => {
     const product = await Product.findOne({ customId: productId });
     if (!product) return res.status(404).json({ error: 'المنتج غير موجود' });
 
-    // تحديد السعر بناءً على المنتج والباقة
     const currentPlans = planPricings[productId] || planPricings["default"];
     const selectedPlan = currentPlans[planId];
     
@@ -76,24 +65,32 @@ exports.createOrder = async (req, res) => {
     let finalAmount = baseAmount;
     let appliedCouponId = null;
 
+    // جلب بيانات المستخدم لفحص الكوبونات المستخدمة سابقاً
+    const user = await User.findById(req.user.id);
+
     // تطبيق الكوبون إن وجد
     if (couponCode) {
       const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
-      if (coupon && coupon.validUntil > new Date() && (!coupon.maxUses || coupon.usedCount < coupon.maxUses)) {
-        
-        // منع المستخدم من استخدام نفس الكوبون مرتين
-        const user = await User.findById(req.user.id);
+      
+      if (coupon) {
+        // التحقق من أن المستخدم لم يقم باستخدام هذا الكوبون مسبقاً (هنا الخدعة التسويقية)
         if (user.usedCoupons.includes(coupon._id)) {
-            return res.status(400).json({ error: 'لقد قمت باستخدام هذا الكوبون مسبقاً! الكوبون صالح لمرة واحدة فقط لكل مستخدم.' });
+          return res.status(400).json({ error: 'لقد قمت باستخدام هذا الكوبون مسبقاً في عملية شراء سابقة.' });
         }
 
-        if (coupon.discountType === 'percentage') {
-          finalAmount = baseAmount - (baseAmount * (coupon.discountValue / 100));
-        } else if (coupon.discountType === 'fixed') {
-          finalAmount = baseAmount - coupon.discountValue;
+        if (coupon.validUntil > new Date() && (!coupon.maxUses || coupon.usedCount < coupon.maxUses)) {
+          if (coupon.discountType === 'percentage') {
+            finalAmount = baseAmount - (baseAmount * (coupon.discountValue / 100));
+          } else if (coupon.discountType === 'fixed') {
+            finalAmount = baseAmount - coupon.discountValue;
+          }
+          finalAmount = Math.max(0.5, finalAmount); 
+          appliedCouponId = coupon._id;
+        } else {
+          return res.status(400).json({ error: 'عذراً، هذا الكوبون غير صالح أو انتهت صلاحيته.' });
         }
-        finalAmount = Math.max(0.5, finalAmount); // باي بال لا يقبل أقل من نصف دولار
-        appliedCouponId = coupon._id;
+      } else {
+        return res.status(400).json({ error: 'رمز الكوبون المدخل غير صحيح.' });
       }
     }
 
@@ -117,12 +114,12 @@ exports.createOrder = async (req, res) => {
 
     const order = await client.execute(request);
 
-    // حفظ المعاملة مع تخزين الخطة والكمية المحددة في الكائن
+    // حفظ المعاملة مع تخزين الكوبون ليتم استهلاكه عند الموافقة
     const transaction = new Transaction({
       user: req.user.id,
       product: product._id,
       type: planId, 
-      quantity: selectedPlan.quantity, // أخذ الكمية من الكائن بناءً على الخطة
+      quantity: selectedPlan.quantity,
       amount: finalAmount,
       paypalOrderId: order.result.id,
       couponUsed: appliedCouponId,
@@ -159,21 +156,20 @@ exports.captureOrder = async (req, res) => {
       transaction.status = 'completed';
       await transaction.save();
 
-      // تحديث استخدام الكوبون العام وتسجيله في حساب المستخدم
       const user = await User.findById(transaction.user);
 
+      // تحديث استخدام الكوبون (تسجيله في حساب المستخدم لمنع استخدامه مرة أخرى)
       if (transaction.couponUsed) {
-        // تحديث العداد العام للكوبون (إذا كان محدوداً)
         await Coupon.findByIdAndUpdate(transaction.couponUsed, { $inc: { usedCount: 1 } });
-        // تسجيل الكوبون بحساب العميل لمنعه من استخدامه مرة أخرى
+        // إضافة الكوبون لمصفوفة العميل
         if (!user.usedCoupons.includes(transaction.couponUsed)) {
-            user.usedCoupons.push(transaction.couponUsed);
+          user.usedCoupons.push(transaction.couponUsed);
         }
       }
 
       const planId = transaction.type;
       
-      // تفريغ الرصيد أو الاشتراك بناءً على الخطة
+      // تفريغ الرصيد أو الاشتراك بناءً على الخطة (كما هو في كودك)
       if (planId.startsWith('credit_')) {
         const creditIndex = user.credits.findIndex(c => c.product.toString() === transaction.product.toString());
         if (creditIndex > -1) {
@@ -188,7 +184,7 @@ exports.captureOrder = async (req, res) => {
           const currentEnd = new Date(user.subscriptions[subIndex].endDate);
           const now = new Date();
           const baseDate = currentEnd > now ? currentEnd : now;
-          baseDate.setMonth(baseDate.getMonth() + transaction.quantity); // إضافة الأشهر (1 أو 12)
+          baseDate.setMonth(baseDate.getMonth() + transaction.quantity); 
           user.subscriptions[subIndex].endDate = baseDate;
         } else {
           const endDate = new Date();
@@ -214,7 +210,6 @@ exports.captureOrder = async (req, res) => {
     res.status(500).json({ error: 'Server Error' });
   }
 };
-
 exports.webhook = async (req, res) => {
   res.status(200).send('Event received');
 };

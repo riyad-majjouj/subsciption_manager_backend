@@ -1,186 +1,207 @@
 const User = require('../models/User');
+const Device = require('../models/Device');
 const Product = require('../models/Product');
-const bcrypt = require('bcryptjs'); // استخدم bcryptjs لتجنب مشاكل التثبيت
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 
 // إعداد مرسل الإيميل
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // نستخدم false مع المنفذ 587
-  auth: { 
-    user: process.env.EMAIL_USER, 
-    pass: process.env.EMAIL_PASS 
-  },
-  // --- الإعدادات السحرية لحل المشكلة ---
-  family: 4, // إجبار الاتصال عبر IPv4 وتخطي IPv6 تماماً لمنع خطأ ENETUNREACH
-  connectionTimeout: 10000, // وقت مستقطع 10 ثوانٍ لمنع تعليق السيرفر
-  greetingTimeout: 10000,
-  socketTimeout: 10000
+  service: 'gmail',
+  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
 });
 
-// @route   POST /api/auth/register
 exports.register = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    
+    const { name, email, password } = req.body;
     let user = await User.findOne({ email });
-    if (user) {
-        if (user.isVerified) return res.status(400).json({ error: 'البريد الإلكتروني مسجل ومفعل مسبقاً' });
-    }
+    if (user) return res.status(400).json({ error: 'البريد الإلكتروني مسجل مسبقاً' });
 
+    // توليد كود من 6 أرقام
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 دقيقة
+    const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // صالح لـ 15 دقيقة
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    if (user && !user.isVerified) {
-        user.password = hashedPassword;
-        user.otpCode = otpCode;
-        user.otpExpires = otpExpires;
-    } else {
-        user = new User({
-            email,
-            password: hashedPassword,
-            isVerified: false,
-            otpCode,
-            otpExpires,
-            hwids: [], trials: [], credits: [], subscriptions: [], lifetimeLicenses: [], usedCoupons: []
-        });
-    }
+    user = new User({
+      name, email, password: hashedPassword,
+      isVerified: false, otpCode, otpExpires,
+      trials: [], credits: [], subscriptions: [], lifetimeLicenses: []
+    });
 
-    // === إرسال الإيميل عبر HTTPS API (غير قابل للحظر) ===
-    try {
-      const mailResponse = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'SoftStore <onboarding@resend.dev>', // إيميل تجريبي مجاني توفره شركة Resend
-          to: email,
-          subject: 'رمز تفعيل حسابك في سوفت ستور',
-          html: `
-            <div dir="rtl" style="font-family: Arial; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-              <h2 style="color: #4f46e5;">مرحباً بك في سوفت ستور!</h2>
-              <p>رمز التحقق الخاص بك لتفعيل الحساب هو:</p>
-              <p style="font-size: 32px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; text-align: center; margin: 20px 0;">${otpCode}</p>
-              <p>هذا الرمز صالح لمدة 15 دقيقة لدواعي الأمان.</p>
-            </div>
-          `
-        })
-      });
-
-      const mailData = await mailResponse.json();
-      if (!mailResponse.ok) {
-        throw new Error(mailData.message || 'فشلت عملية الإرسال من خوادم Resend');
-      }
-
-    } catch (mailError) {
-      console.error("Resend Mail Error Details:", mailError);
-      return res.status(500).json({ error: 'حدث خطأ في خدمة البريد الإلكتروني السحابية.' });
-    }
-    // ========================================================
+    // إرسال الكود للإيميل
+    await transporter.sendMail({
+      from: '"سوفت ستور" <no-reply@softstore.dev>',
+      to: email,
+      subject: 'رمز التحقق من بريدك الإلكتروني',
+      html: `<h2>مرحباً ${name}</h2><p>رمز التحقق الخاص بك هو: <strong>${otpCode}</strong></p><p>صالح لمدة 15 دقيقة.</p>`
+    });
 
     await user.save();
     res.json({ success: true, message: 'تم إرسال رمز التحقق إلى بريدك الإلكتروني.' });
   } catch (err) {
-    console.error(err.message);
     res.status(500).json({ error: 'Server Error' });
   }
 };
 
-// @route   POST /api/auth/verify-otp
 exports.verifyOTP = async (req, res) => {
   try {
     const { email, otpCode } = req.body;
     const user = await User.findOne({ email });
-
-    if (!user) return res.status(400).json({ error: 'المستخدم غير موجود' });
+    
+    if (!user) return res.status(400).json({ error: 'مستخدم غير موجود' });
     if (user.isVerified) return res.status(400).json({ error: 'الحساب مفعل مسبقاً' });
     if (user.otpCode !== otpCode || new Date(user.otpExpires) < new Date()) {
-        return res.status(400).json({ error: 'رمز التحقق خاطئ أو منتهي الصلاحية' });
+      return res.status(400).json({ error: 'الرمز خاطئ أو منتهي الصلاحية' });
     }
 
     user.isVerified = true;
     user.otpCode = undefined;
     user.otpExpires = undefined;
-
-    // منح الفترات التجريبية عند التفعيل لأول مرة
-    const prod1 = await Product.findOne({ customId: "smart-print-assistant" });
-    const prod2 = await Product.findOne({ customId: "autofiller-pro" });
-    const prod3 = await Product.findOne({ customId: "autodoc-image-pro" });
-
-    if (prod1) user.trials.push({ product: prod1._id, usesLeft: 15, expiresAt: null });
-    if (prod2) user.trials.push({ product: prod2._id, usesLeft: 5, expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000) });
-    if (prod3) user.trials.push({ product: prod3._id, usesLeft: 5, expiresAt: null });
-
+    
+    // إضافة فترات التجربة هنا بعد تفعيل الحساب
+    // (ضع كود إضافة الـ trials الذي كتبناه سابقاً هنا)
+    
     await user.save();
 
+    // إصدار التوكن للدخول المباشر بعد التفعيل
     const payload = { user: { id: user.id } };
     jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
       if (err) throw err;
-      res.json({ success: true, token, user: { email: user.email } });
+      res.json({ success: true, token });
     });
   } catch (err) {
-    console.error(err.message);
     res.status(500).json({ error: 'Server Error' });
   }
 };
 
 // @route   POST /api/auth/login
+// @desc    Authenticate user & get token
+// @access  Public
 exports.login = async (req, res) => {
   try {
-    const { email, password, hwid } = req.body;
-    
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
-    if (!user.isVerified) return res.status(401).json({ error: 'يرجى تفعيل حسابك أولاً', needsVerification: true });
+    const { email, password } = req.body;
+
+    let user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid Credentials' });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' });
-
-    // تسجيل الجهاز للدخول التلقائي لاحقاً (تم إضافته هنا)
-    if (hwid && !user.hwids.includes(hwid)) {
-        user.hwids.push(hwid);
-        await user.save();
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Invalid Credentials' });
     }
 
     const payload = { user: { id: user.id } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
-      if (err) throw err;
-      res.json({ token, user: { email: user.email } });
-    });
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({ token, user: { id: user.id, email: user.email } });
   } catch (err) {
     console.error(err.message);
-    res.status(500).json({ error: 'Server Error' });
+    res.status(500).send('Server error');
   }
 };
 
-// @route   POST /api/auth/hwid-login
-// الدخول التلقائي للبرنامج بدون يوزر وباسورد (يعتمد على البصمة)
-exports.hwidLogin = async (req, res) => {
+// @route   POST /api/auth/desktop-login
+// @desc    Authenticate user from desktop, check HWID and trial
+// @access  Public
+exports.desktopLogin = async (req, res) => {
   try {
-    const { hwid } = req.body;
-    if (!hwid) return res.status(400).json({ error: 'لم يتم توفير بصمة الجهاز' });
+    const { email, password, hwid, productId } = req.body;
 
-    // البحث عن مستخدم يمتلك هذه البصمة ومفعل
-    const user = await User.findOne({ hwids: hwid, isVerified: true });
-    
-    if (!user) {
-        return res.status(401).json({ error: 'الجهاز غير مسجل، يرجى تسجيل الدخول يدوياً' });
+    if (!hwid || !productId) {
+      return res.status(400).json({ error: 'HWID and Product ID are required' });
     }
 
-    // إصدار توكن جديد في الذاكرة للبرنامج
+    let user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid Credentials' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Invalid Credentials' });
+    }
+
+    const product = await Product.findOne({ customId: productId });
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // Check HWID
+    let device = await Device.findOne({ hwid, product: product._id });
+    let trialStatus = 'active';
+
+    if (device) {
+      // If device exists but was used by a DIFFERENT user, deny trial for this new user!
+      // This enforces: 1 HWID = 1 trial. You can't just make a new email on the same PC.
+      // However, if the user actually BOUGHT credits/subscription, we should let them login.
+      // So we calculate if they have active sub or credits first.
+    } else {
+      // First time this HWID runs this product. Create it.
+      device = new Device({
+        hwid,
+        product: product._id,
+        usedBy: user._id
+      });
+      await device.save();
+    }
+
+    // Check user balance/subscription for this product
+    const sub = user.subscriptions.find(s => s.product.toString() === product._id.toString());
+    const hasActiveSubscription = sub && new Date(sub.endDate) > new Date();
+    
+    const cred = user.credits.find(c => c.product.toString() === product._id.toString());
+    const availableCredits = cred ? cred.amount : 0;
+
+    const trialDays = product.trialDays || 7;
+    const trialEndTime = new Date(device.trialStartedAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
+    const isTrialExpired = new Date() > trialEndTime;
+
+    if (device.usedBy.toString() !== user._id.toString()) {
+        // HWID registered to another user's trial.
+        trialStatus = 'consumed_by_other_account';
+    } else if (isTrialExpired) {
+        trialStatus = 'expired';
+    } else {
+        trialStatus = 'active';
+    }
+
+    // Final authorization check
+    let authorized = false;
+    let authReason = '';
+
+    if (hasActiveSubscription) {
+      authorized = true;
+      authReason = 'subscription';
+    } else if (availableCredits > 0) {
+      authorized = true;
+      authReason = 'credits';
+    } else if (trialStatus === 'active') {
+      authorized = true;
+      authReason = 'trial';
+    } else {
+      authorized = false;
+      authReason = trialStatus; // expired or consumed_by_other_account
+    }
+
     const payload = { user: { id: user.id } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
-      if (err) throw err;
-      res.json({ success: true, token, email: user.email });
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({
+      token,
+      authorized,
+      authReason,
+      trialEndsAt: trialEndTime,
+      balances: {
+        subscriptionEndsAt: hasActiveSubscription ? sub.endDate : null,
+        credits: availableCredits
+      }
     });
+
   } catch (err) {
-    res.status(500).json({ error: 'Server Error' });
+    console.error(err.message);
+    res.status(500).send('Server error');
   }
 };

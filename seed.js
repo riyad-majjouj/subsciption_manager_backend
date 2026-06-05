@@ -1,7 +1,7 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const Product = require('./models/Product');
-const Coupon = require('./models/Coupon'); // أضفنا مودل الكوبون هنا
+const Coupon = require('./models/Coupon');
 
 const connectDB = async () => {
   try {
@@ -16,40 +16,58 @@ const connectDB = async () => {
 const seedData = async () => {
   await connectDB();
 
-  // 1. إضافة المنتجات
+  // 1. إضافة وتحديث المنتجات الأربعة بالبيانات الجديدة
   const products = [
     {
       customId: "autodoc-image-pro",
       name: "AutoDoc Image Pro",
       type: "desktop",
       trialDays: 3,
-      pricing: { creditPrice: 0.19, subscriptionPriceMonthly: 15 }
+      pricing: { 
+        creditPrice: 0.2, // سعر الكريدت 0.20$
+        subscriptionPriceMonthly: 15 // الاشتراك الشهري 15$
+      }
     },
     {
       customId: "smart-print-assistant",
       name: "Smart Print Assistant Pro",
       type: "desktop",
       trialDays: 3,
-      pricing: { creditPrice: 0.15, subscriptionPriceMonthly: 10 }
+      pricing: { 
+        creditPrice: 0.15, // سعر الكريدت 0.15$
+        subscriptionPriceMonthly: 10 // الاشتراك الشهري 10$
+      }
     },
     {
       customId: "autofiller-pro",
       name: "AutoFillerPro",
       type: "desktop",
       trialDays: 3,
-      pricing: { creditPrice: 1, subscriptionPriceMonthly: 20 }
+      pricing: { 
+        creditPrice: 1, // سعر الكريدت 1$
+        subscriptionPriceMonthly: 20 // الاشتراك الشهري 20$
+      }
+    },
+    {
+      customId: "smartcv-maroc",
+      name: "SmartCV Maroc",
+      type: "website", // موقع ويب وليس برنامج سطح مكتب
+      trialDays: 3,
+      pricing: { 
+        creditPrice: 0.3, // سعر الكريدت 0.30$
+        subscriptionPriceMonthly: 15 // الاشتراك الشهري 15$
+      }
     }
   ];
 
   for (const p of products) {
     await Product.findOneAndUpdate({ customId: p.customId }, p, { upsert: true, new: true });
   }
-  console.log('Products seeded successfully');
+  console.log('All 4 Products seeded/updated successfully!');
 
-  // 2. إضافة كوبون الخدعة التسويقية
-  const couponCode = "LUCKY75"; // يمكنك تغيير الرمز كما تشاء
+  // 2. إضافة كوبون الخدعة التسويقية (LUCKY75)
+  const couponCode = "LUCKY75";
   
-  // التحقق مما إذا كان الكوبون موجوداً مسبقاً حتى لا يتكرر
   const existingCoupon = await Coupon.findOne({ code: couponCode });
   
   if (!existingCoupon) {
@@ -57,10 +75,10 @@ const seedData = async () => {
       code: couponCode,
       discountType: "percentage",
       discountValue: 75, // خصم 75%
-      maxUses: null, // السر هنا: null تعني عدد لا نهائي من الاستخدامات
+      maxUses: null, // السر هنا: الكوبون يعمل عدد لا نهائي من المرات للجميع
       validUntil: new Date(new Date().setFullYear(new Date().getFullYear() + 1)), // صالح لمدة سنة من الآن
       isActive: true,
-      applicableProducts: [] // يعمل على جميع البرامج
+      applicableProducts: [] // يعمل على جميع البرامج بلا استثناء
     });
     
     await luckyCoupon.save();

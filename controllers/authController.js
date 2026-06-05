@@ -19,16 +19,16 @@ exports.register = async (req, res) => {
     let userExists = await User.findOne({ email });
     if (userExists) return res.status(400).json({ error: 'البريد الإلكتروني مسجل مسبقاً' });
 
-    // التحقق هل هذا الجهاز (HWID) يمتلك حساباً مسبقاً؟ (لمنع عمل حسابات وهمية)
+    // التحقق هل هذا الجهاز (HWID) يمتلك حساباً مسبقاً؟ باستخدام الحقل الصحيح globalHwid
     if (hwid) {
-      let hwidExists = await User.findOne({ hwid });
+      let hwidExists = await User.findOne({ globalHwid: hwid });
       if (hwidExists) return res.status(400).json({ error: 'هذا الجهاز مسجل بحساب آخر مسبقاً.' });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // إعطاء فترات تجريبية تلقائية (كما برمجناها سابقاً)
+    // إعطاء فترات تجريبية تلقائية للبرامج الثلاثة الأولى
     const prod1 = await Product.findOne({ customId: "smart-print-assistant" });
     const prod2 = await Product.findOne({ customId: "autofiller-pro" });
     const prod3 = await Product.findOne({ customId: "autodoc-image-pro" });
@@ -41,7 +41,7 @@ exports.register = async (req, res) => {
     const user = new User({
       email,
       password: hashedPassword,
-      hwid: hwid || null, // حفظ بصمة الجهاز
+      globalHwid: hwid || null, // حفظها هنا باسم الحقل الصحيح globalHwid
       trials: trialsData
     });
 
